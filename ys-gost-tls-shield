@@ -1,7 +1,9 @@
 #!/bin/bash
 
-# Gost-TLS-Shield v3.0 (Smart UI & Multi-Port)
-# Created by Rmin-ys
+# ==========================================
+# Gost-TLS-Shield v3.1 (High-Speed & Stable)
+# Created by Rmin-ys (2026)
+# ==========================================
 
 # Colors
 RED='\033[0;31m'
@@ -11,7 +13,7 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Functions for UI
+# UI Functions
 draw_line() { echo -e "${BLUE}--------------------------------------------------${NC}"; }
 header() {
     clear
@@ -22,60 +24,50 @@ header() {
     echo " ██║   ██║██║   ██║╚════██║   ██║   "
     echo " ╚██████╔╝╚██████╔╝███████║   ██║   "
     echo "  ╚═════╝  ╚═════╝ ╚══════╝   ╚═╝   "
-    echo -e "          Gost TLS Shield v3.0${NC}"
+    echo -e "          Gost TLS Shield v3.1${NC}"
     draw_line
 }
 
-# Check for Gost
+# Optimization (BBR)
+enable_bbr() {
+    if ! sysctl net.ipv4.tcp_congestion_control | grep -q "bbr"; then
+        echo -e "${YELLOW}Optimizing Network (BBR)...${NC}"
+        echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+        echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+        sysctl -p > /dev/null 2>&1
+    fi
+}
+
+# Install Gost
 check_gost() {
     if [ ! -f "/usr/local/bin/gost" ]; then
-        echo -e "${YELLOW}Installing Gost...${NC}"
-        wget -qO gost.gz https://github.com/ginuerzh/gost/releases/download/v2.11.5/gost-linux-amd64-2.11.5.gz && gunzip gost.gz
+        echo -e "${YELLOW}Downloading Gost...${NC}"
+        arch=$(uname -m)
+        case $arch in
+            x86_64) url="https://github.com/ginuerzh/gost/releases/download/v2.11.5/gost-linux-amd64-2.11.5.gz" ;;
+            aarch64) url="https://github.com/ginuerzh/gost/releases/download/v2.11.5/gost-linux-arm8-2.11.5.gz" ;;
+            *) echo -e "${RED}Arch not supported!${NC}"; exit 1 ;;
+        esac
+        wget -qO gost.gz $url && gunzip gost.gz
         mv gost /usr/local/bin/gost && chmod +x /usr/local/bin/gost
     fi
 }
 
-# Status Function
+# Status
 show_status() {
     header
-    echo -e "${YELLOW}Tunnel Status:${NC}"
+    echo -e "${YELLOW}Tunnel Service Status:${NC}"
     if systemctl is-active --quiet gost-tunnel; then
-        echo -e "Status: ${GREEN}Active (Running)${NC}"
-        echo -e "\n${YELLOW}Active Port Forwarding:${NC}"
-        journalctl -u gost-tunnel -n 20 --no-pager | grep -i "listen" | tail -n 5
+        echo -e "Status: ${GREEN}● Active (Running)${NC}"
+        echo -e "\n${YELLOW}Last 10 Logs:${NC}"
+        journalctl -u gost-tunnel -n 10 --no-pager
     else
-        echo -e "Status: ${RED}Inactive (Stopped)${NC}"
+        echo -e "Status: ${RED}○ Inactive (Stopped/Failed)${NC}"
+        echo -e "\n${RED}Error Log:${NC}"
+        journalctl -u gost-tunnel -n 5 --no-pager
     fi
     draw_line
-    read -p "Press Enter to return to menu..."
-}
-
-# Main Menu
-main_menu() {
-    while true; do
-        header
-        echo -e "1) ${GREEN}Setup Iran Server${NC}"
-        echo -e "2) ${GREEN}Setup Overseas Server${NC}"
-        echo -e "3) ${BLUE}Show Tunnel Status & Logs${NC}"
-        echo -e "4) ${RED}Uninstall / Stop Tunnel${NC}"
-        echo -e "5) Exit"
-        draw_line
-        read -p "Select an option [1-5]: " main_opt
-
-        case $main_opt in
-            1) setup_server "iran" ;;
-            2) setup_server "overseas" ;;
-            3) show_status ;;
-            4) 
-                systemctl stop gost-tunnel && systemctl disable gost-tunnel
-                rm -f /etc/systemd/system/gost-tunnel.service
-                echo -e "${RED}Tunnel uninstalled.${NC}"
-                sleep 2
-                ;;
-            5) exit 0 ;;
-            *) echo -e "${RED}Invalid option!${NC}"; sleep 1 ;;
-        esac
-    done
+    read -p "Press Enter to return..."
 }
 
 # Setup Logic
@@ -83,7 +75,7 @@ setup_server() {
     local mode=$1
     header
     echo -e "${YELLOW}Configuring $mode Server${NC}"
-    echo -e "${CYAN}(Enter 0 at any time to go back)${NC}\n"
+    echo -e "${CYAN}(Enter 0 to cancel and go back)${NC}\n"
 
     read -p "Tunnel Username: " g_user
     [[ "$g_user" == "0" ]] && return
@@ -103,23 +95,30 @@ setup_server() {
 
         IFS=',' read -ra ADDR <<< "$ports"
         ARGS=""
-        for i in "${ADDR[@]}"; do ARGS+="-L tcp://:$i/127.0.0.1:$i "; done
-        EXEC_CMD="/usr/local/bin/gost $ARGS -F mwss://$g_user:$g_pass@$r_ip:$b_port"
+        for i in "${ADDR[@]}"; do
+            ARGS+="-L tcp://:$i/127.0.0.1:$i "
+        done
+        EXEC_CMD="/usr/local/bin/gost $ARGS -F relay+tls://$g_user:$g_pass@$r_ip:$b_port"
     else
         read -p "Enter Destination Ports (e.g. 8875,8885): " ports
         [[ "$ports" == "0" ]] && return
         
         IFS=',' read -ra ADDR <<< "$ports"
         ARGS=""
-        for i in "${ADDR[@]}"; do ARGS+="-L tcp://:127.0.0.1:$i/127.0.0.1:$i "; done
-        EXEC_CMD="/usr/local/bin/gost -L mwss://$g_user:$g_pass@:$b_port $ARGS"
+        for i in "${ADDR[@]}"; do
+            ARGS+="-L tcp://127.0.0.1:$i/127.0.0.1:$i "
+        done
+        # Correct sequence for overseas: Bridge first, then mapped ports
+        EXEC_CMD="/usr/local/bin/gost -L relay+tls://$g_user:$g_pass@:$b_port $ARGS"
     fi
 
-    # Create Service
+    # Installation
     check_gost
+    enable_bbr
+
     cat <<EOF > /etc/systemd/system/gost-tunnel.service
 [Unit]
-Description=Gost High Speed Tunnel
+Description=Gost Stable Tunnel
 After=network.target
 
 [Service]
@@ -136,9 +135,32 @@ EOF
     systemctl daemon-reload
     systemctl enable gost-tunnel
     systemctl restart gost-tunnel
-    echo -e "\n${GREEN}Success! Tunnel configured and started.${NC}"
-    sleep 3
+    
+    echo -e "\n${GREEN}Successfully Configured! Checking status...${NC}"
+    sleep 2
+    show_status
 }
 
-# Start Script
-main_menu
+# Main Menu
+while true; do
+    header
+    echo -e "1) ${GREEN}Setup Iran Server${NC}"
+    echo -e "2) ${GREEN}Setup Overseas Server${NC}"
+    echo -e "3) ${BLUE}Show Status & Logs${NC}"
+    echo -e "4) ${RED}Uninstall / Stop Tunnel${NC}"
+    echo -e "5) Exit"
+    draw_line
+    read -p "Select option: " opt
+
+    case $opt in
+        1) setup_server "iran" ;;
+        2) setup_server "overseas" ;;
+        3) show_status ;;
+        4)
+            systemctl stop gost-tunnel && systemctl disable gost-tunnel
+            rm -f /etc/systemd/system/gost-tunnel.service
+            echo -e "${RED}Service removed.${NC}"; sleep 2 ;;
+        5) exit 0 ;;
+        *) echo -e "${RED}Invalid!${NC}"; sleep 1 ;;
+    esac
+done
