@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # ==========================================
-# Gost-Shield v7.0 (Classic 3.3 UI Style)
-# Simple - Clean - Functional
+# Gost-Shield v5.0 (Stable Edition)
 # ==========================================
 
 # Colors
@@ -22,7 +21,7 @@ fi
 header() {
     clear
     echo -e "${BLUE}==================================================${NC}"
-    echo -e "${GREEN}          GOST CLASSIC MANAGER v7.0${NC}"
+    echo -e "${GREEN}          GOST MANAGER v5.0${NC}"
     echo -e "${BLUE}==================================================${NC}"
 }
 
@@ -33,17 +32,15 @@ setup_iran() {
     read -p "Enter Password: " s_pass
     read -p "Enter Local Ports (e.g. 8885,8875): " raw_ports
     
-    # اصلاح خودکار کاراکترهای فارسی و فاصله‌ها برای جلوگیری از خطا
+    # اصلاح خودکار کاراکترهای فارسی و فاصله‌ها
     ports=$(echo $raw_ports | sed 's/و/,/g' | tr -d ' ')
     
     IFS=',' read -ra ADDR <<< "$ports"
     ARGS=""
     for i in "${ADDR[@]}"; do
-        # ورودی از ایران به همان پورت در خارج
         ARGS+="-L tcp://:$i/127.0.0.1:$i "
     done
 
-    # استفاده از پروتکل Shadowsocks ساده برای پایداری
     EXEC_CMD="/usr/local/bin/gost $ARGS -F ss://chacha20:$s_pass@$r_ip:$b_port"
     create_service "$EXEC_CMD"
 }
@@ -52,9 +49,9 @@ setup_overseas() {
     header
     read -p "Enter Bridge Port: " b_port
     read -p "Enter Password: " s_pass
+    read -p "Enter Destination Port (Xray Port): " d_port
     
-    # در خارج، گوست به عنوان سرور عمل می‌کند
-    EXEC_CMD="/usr/local/bin/gost -L ss://chacha20:$s_pass@:$b_port"
+    EXEC_CMD="/usr/local/bin/gost -L ss://chacha20:$s_pass@:$b_port/127.0.0.1:$d_port"
     create_service "$EXEC_CMD"
 }
 
@@ -63,7 +60,7 @@ create_service() {
     killall -9 gost 2>/dev/null
     cat <<EOF > /etc/systemd/system/gost-tunnel.service
 [Unit]
-Description=Gost Classic Tunnel
+Description=Gost Secure Tunnel
 After=network.target
 
 [Service]
@@ -87,7 +84,7 @@ header
 echo "1) Setup Iran Server"
 echo "2) Setup Overseas Server"
 echo "3) Show Status & Logs"
-echo "4) Stop / Uninstall"
+echo "4) Uninstall / Stop"
 echo "5) Exit"
 read -p "Select: " opt
 
