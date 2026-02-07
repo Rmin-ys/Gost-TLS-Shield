@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ==========================================
-# Gost-Shield v4.9 (Classic 4.8 UI + WSS)
-# Optimized for Domain, Stealth & Stability
+# Gost-Shield v4.8 (Ultimate UI Edition)
+# Optimized for Stealth, Speed & Management
 # ==========================================
 
 # Colors & Formatting
@@ -29,20 +29,29 @@ draw_double_line() { echo -e "${BLUE}===========================================
 header() {
     clear
     echo -e "${PURPLE}${BOLD}"
-    echo "  🚀 GOST SHIELD STEALTH v4.9"
-    echo "      Classic UI with WSS Support"
+    echo "  🚀 GOST SHIELD ULTIMATE v4.8"
+    echo "     Secure & Stealthy Tunneling"
     echo -e "${NC}"
     draw_double_line
 }
 
+# Function to show detailed status
 show_status() {
     header
     if systemctl is-active --quiet gost-tunnel; then
-        echo -e "Status: ${GREEN}${BOLD}● ACTIVE (WSS MODE)${NC}"
+        echo -e "Status: ${GREEN}${BOLD}● ACTIVE (RUNNING)${NC}"
         echo -e "Uptime: ${CYAN}$(systemctl show gost-tunnel --property=ActiveEnterTimestamp | cut -d'=' -f2)${NC}"
         draw_line
-        echo -e "${YELLOW}${BOLD}ACTIVE PORTS:${NC}"
-        netstat -tlpn | grep gost | awk '{print "  -> " $4}' | sed 's/0.0.0.0://g' | sed 's/::://g'
+        echo -e "${YELLOW}${BOLD}ACTIVE TUNNELS:${NC}"
+        
+        # استخراج پورت‌ها از دستور در حال اجرا
+        CMD=$(ps aux | grep gost | grep -v grep)
+        if [[ $CMD == *"ss://"* ]]; then
+            echo -e "${BLUE}Protocol:${NC} Shadowsocks (ChaCha20)"
+            # نمایش پورت‌های لیسن شده
+            echo -e "${BLUE}Monitoring Ports:${NC}"
+            netstat -tlpn | grep gost | awk '{print "  -> " $4}' | sed 's/0.0.0.0://g' | sed 's/::://g'
+        fi
     else
         echo -e "Status: ${RED}${BOLD}○ INACTIVE (STOPPED)${NC}"
     fi
@@ -55,16 +64,13 @@ show_status() {
 
 setup_iran() {
     header
-    echo -e "${YELLOW}Step 1: Overseas Connection (WSS)${NC}"
-    read -p "  Enter Domain: " domain
-    read -p "  Bridge Port (Usually 443): " b_port
-    read -p "  Secret Password: " s_pass
+    echo -e "${YELLOW}Step 1: Overseas Connection Details${NC}"
+    read -p "  IP Address: " r_ip
+    read -p "  Bridge Port: " b_port
+    read -p "  Password: " s_pass
     draw_line
     echo -e "${YELLOW}Step 2: Local Ports (Xray Ports)${NC}"
-    read -p "  Enter Ports (e.g. 8885,444): " raw_ports
-    
-    # Fix Persian "و" and spaces
-    ports=$(echo $raw_ports | sed 's/و/,/g' | tr -d ' ')
+    read -p "  Enter Ports (comma separated, e.g. 8885,444): " ports
     
     IFS=',' read -ra ADDR <<< "$ports"
     ARGS=""
@@ -72,26 +78,23 @@ setup_iran() {
         ARGS+="-L tcp://:$i/127.0.0.1:$i "
     done
     
-    # دستور جدید بر پایه WSS
-    EXEC_CMD="/usr/local/bin/gost $ARGS -F wss://admin:$s_pass@$domain:$b_port?path=/ws"
+    EXEC_CMD="/usr/local/bin/gost $ARGS -F ss://chacha20:$s_pass@$r_ip:$b_port"
     create_service "$EXEC_CMD"
 }
 
 setup_overseas() {
     header
-    echo -e "${YELLOW}Setup Gateway (Overseas WSS)${NC}"
-    read -p "  Listen Port (Usually 443): " b_port
-    read -p "  Secret Password: " s_pass
-    read -p "  Destination Port (Xray Port): " d_port
+    echo -e "${YELLOW}Setup Gateway (Overseas)${NC}"
+    read -p "  Listen Port (Bridge): " b_port
+    read -p "  Encryption Password: " s_pass
     
-    # دستور گیرنده بر پایه WSS
-    EXEC_CMD="/usr/local/bin/gost -L wss://admin:$s_pass@:$b_port/127.0.0.1:$d_port?path=/ws"
+    EXEC_CMD="/usr/local/bin/gost -L ss://chacha20:$s_pass@:$b_port"
     create_service "$EXEC_CMD"
 }
 
 create_service() {
     local cmd=$1
-    echo -e "\n${YELLOW}Applying Stealth configuration...${NC}"
+    echo -e "\n${YELLOW}Applying configuration...${NC}"
     killall -9 gost 2>/dev/null
     cat <<EOF > /etc/systemd/system/gost-tunnel.service
 [Unit]
@@ -111,15 +114,15 @@ EOF
     systemctl daemon-reload
     systemctl enable gost-tunnel >/dev/null 2>&1
     systemctl restart gost-tunnel
-    echo -e "${GREEN}${BOLD}✔ SUCCESS! Stealth Tunnel is now active.${NC}"
+    echo -e "${GREEN}${BOLD}✔ SUCCESS! Tunnel is now active.${NC}"
     sleep 2
 }
 
 # Main Loop
 while true; do
     header
-    echo -e " 1) ${GREEN}Setup Iran Server (WSS Entry)${NC}"
-    echo -e " 2) ${GREEN}Setup Overseas Server (WSS Exit)${NC}"
+    echo -e " 1) ${GREEN}Setup Iran Server (Entry Point)${NC}"
+    echo -e " 2) ${GREEN}Setup Overseas Server (Exit Point)${NC}"
     echo -e " 3) ${CYAN}Check Status & Dashboard${NC}"
     echo -e " 4) ${RED}Stop & Uninstall Tunnel${NC}"
     echo -e " 5) Exit"
