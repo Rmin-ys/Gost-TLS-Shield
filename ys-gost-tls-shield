@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==========================================
-# Gost-TLS-Shield v3.1 (High-Speed & Stable)
+# Gost-TLS-Shield v3.2 (Xray-Compatible)
 # Created by Rmin-ys (2026)
 # ==========================================
 
@@ -24,7 +24,7 @@ header() {
     echo " ██║   ██║██║   ██║╚════██║   ██║   "
     echo " ╚██████╔╝╚██████╔╝███████║   ██║   "
     echo "  ╚═════╝  ╚═════╝ ╚══════╝   ╚═╝   "
-    echo -e "          Gost TLS Shield v3.1${NC}"
+    echo -e "          Gost TLS Shield v3.2${NC}"
     draw_line
 }
 
@@ -59,8 +59,8 @@ show_status() {
     echo -e "${YELLOW}Tunnel Service Status:${NC}"
     if systemctl is-active --quiet gost-tunnel; then
         echo -e "Status: ${GREEN}● Active (Running)${NC}"
-        echo -e "\n${YELLOW}Last 10 Logs:${NC}"
-        journalctl -u gost-tunnel -n 10 --no-pager
+        echo -e "\n${YELLOW}Active Port Mappings:${NC}"
+        ps aux | grep gost | grep -v grep | awk '{for(i=11;i<=NF;i++) printf "%s ", $i; print ""}'
     else
         echo -e "Status: ${RED}○ Inactive (Stopped/Failed)${NC}"
         echo -e "\n${RED}Error Log:${NC}"
@@ -75,20 +75,22 @@ setup_server() {
     local mode=$1
     header
     echo -e "${YELLOW}Configuring $mode Server${NC}"
-    echo -e "${CYAN}(Enter 0 to cancel and go back)${NC}\n"
+    echo -e "${CYAN}(Enter 0 to cancel)${NC}\n"
 
     read -p "Tunnel Username: " g_user
-    [[ "$g_user" == "0" ]] && return
+    g_user=$(echo "$g_user" | tr -cd '[:alnum:]')
+    [[ "$g_user" == "0" || -z "$g_user" ]] && return
 
     read -p "Tunnel Password: " g_pass
-    [[ "$g_pass" == "0" ]] && return
+    g_pass=$(echo "$g_pass" | tr -cd '[:alnum:]')
+    [[ "$g_pass" == "0" || -z "$g_pass" ]] && return
 
-    read -p "Bridge Port (between servers, default 443): " b_port
+    read -p "Bridge Port (Overseas Listen Port, default 443): " b_port
     [[ "$b_port" == "0" ]] && return
     b_port=${b_port:-443}
 
     if [ "$mode" == "iran" ]; then
-        read -p "Enter Target Ports (e.g. 8875,8885): " ports
+        read -p "Enter Local Ports (e.g. 8875,8885): " ports
         [[ "$ports" == "0" ]] && return
         read -p "Overseas Server IP: " r_ip
         [[ "$r_ip" == "0" ]] && return
@@ -100,21 +102,22 @@ setup_server() {
         done
         EXEC_CMD="/usr/local/bin/gost $ARGS -F relay+tls://$g_user:$g_pass@$r_ip:$b_port"
     else
-        read -p "Enter Destination Ports (e.g. 8875,8885): " ports
+        read -p "Enter Xray/Panel Ports (e.g. 8875,8885): " ports
         [[ "$ports" == "0" ]] && return
         
         IFS=',' read -ra ADDR <<< "$ports"
         ARGS=""
         for i in "${ADDR[@]}"; do
+            # در سرور خارج، فقط ترافیک را به پورت‌های لوکال Xray هدایت میکنیم
             ARGS+="-L tcp://127.0.0.1:$i/127.0.0.1:$i "
         done
-        # Correct sequence for overseas: Bridge first, then mapped ports
         EXEC_CMD="/usr/local/bin/gost -L relay+tls://$g_user:$g_pass@:$b_port $ARGS"
     fi
 
     # Installation
     check_gost
     enable_bbr
+    killall -9 gost 2>/dev/null
 
     cat <<EOF > /etc/systemd/system/gost-tunnel.service
 [Unit]
@@ -136,7 +139,7 @@ EOF
     systemctl enable gost-tunnel
     systemctl restart gost-tunnel
     
-    echo -e "\n${GREEN}Successfully Configured! Checking status...${NC}"
+    echo -e "\n${GREEN}Successfully Configured!${NC}"
     sleep 2
     show_status
 }
@@ -159,7 +162,8 @@ while true; do
         4)
             systemctl stop gost-tunnel && systemctl disable gost-tunnel
             rm -f /etc/systemd/system/gost-tunnel.service
-            echo -e "${RED}Service removed.${NC}"; sleep 2 ;;
+            killall -9 gost 2>/dev/null
+            echo -e "${RED}Service removed and ports cleaned.${NC}"; sleep 2 ;;
         5) exit 0 ;;
         *) echo -e "${RED}Invalid!${NC}"; sleep 1 ;;
     esac
