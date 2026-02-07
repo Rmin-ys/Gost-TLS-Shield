@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # ==========================================
-# Gost-TLS-Shield v3.2 (Xray-Compatible)
+# Gost-TLS-Shield v3.3 (Zero-Conflict Edition)
+# Optimized for Xray/Panel Co-existence
 # Created by Rmin-ys (2026)
 # ==========================================
 
@@ -24,7 +25,7 @@ header() {
     echo " ██║   ██║██║   ██║╚════██║   ██║   "
     echo " ╚██████╔╝╚██████╔╝███████║   ██║   "
     echo "  ╚═════╝  ╚═════╝ ╚══════╝   ╚═╝   "
-    echo -e "          Gost TLS Shield v3.2${NC}"
+    echo -e "          Gost TLS Shield v3.3${NC}"
     draw_line
 }
 
@@ -59,15 +60,15 @@ show_status() {
     echo -e "${YELLOW}Tunnel Service Status:${NC}"
     if systemctl is-active --quiet gost-tunnel; then
         echo -e "Status: ${GREEN}● Active (Running)${NC}"
-        echo -e "\n${YELLOW}Active Port Mappings:${NC}"
+        echo -e "\n${YELLOW}Running Process Detail:${NC}"
         ps aux | grep gost | grep -v grep | awk '{for(i=11;i<=NF;i++) printf "%s ", $i; print ""}'
     else
         echo -e "Status: ${RED}○ Inactive (Stopped/Failed)${NC}"
-        echo -e "\n${RED}Error Log:${NC}"
+        echo -e "\n${RED}Error Log (Last 5 lines):${NC}"
         journalctl -u gost-tunnel -n 5 --no-pager
     fi
     draw_line
-    read -p "Press Enter to return..."
+    read -p "Press Enter to return to menu..."
 }
 
 # Setup Logic
@@ -75,7 +76,7 @@ setup_server() {
     local mode=$1
     header
     echo -e "${YELLOW}Configuring $mode Server${NC}"
-    echo -e "${CYAN}(Enter 0 to cancel)${NC}\n"
+    echo -e "${CYAN}(Enter 0 to go back)${NC}\n"
 
     read -p "Tunnel Username: " g_user
     g_user=$(echo "$g_user" | tr -cd '[:alnum:]')
@@ -85,7 +86,7 @@ setup_server() {
     g_pass=$(echo "$g_pass" | tr -cd '[:alnum:]')
     [[ "$g_pass" == "0" || -z "$g_pass" ]] && return
 
-    read -p "Bridge Port (Overseas Listen Port, default 443): " b_port
+    read -p "Bridge Port (Listen Port, default 443): " b_port
     [[ "$b_port" == "0" ]] && return
     b_port=${b_port:-443}
 
@@ -102,19 +103,11 @@ setup_server() {
         done
         EXEC_CMD="/usr/local/bin/gost $ARGS -F relay+tls://$g_user:$g_pass@$r_ip:$b_port"
     else
-        read -p "Enter Xray/Panel Ports (e.g. 8875,8885): " ports
-        [[ "$ports" == "0" ]] && return
-        
-        IFS=',' read -ra ADDR <<< "$ports"
-        ARGS=""
-        for i in "${ADDR[@]}"; do
-            # در سرور خارج، فقط ترافیک را به پورت‌های لوکال Xray هدایت میکنیم
-            ARGS+="-L tcp://127.0.0.1:$i/127.0.0.1:$i "
-        done
-        EXEC_CMD="/usr/local/bin/gost -L relay+tls://$g_user:$g_pass@:$b_port $ARGS"
+        # در سرور خارج فقط پورت بریج باز می‌شود تا با Xray تداخل نداشته باشد
+        EXEC_CMD="/usr/local/bin/gost -L relay+tls://$g_user:$g_pass@:$b_port"
     fi
 
-    # Installation
+    # Installation & Service Creation
     check_gost
     enable_bbr
     killall -9 gost 2>/dev/null
@@ -139,7 +132,7 @@ EOF
     systemctl enable gost-tunnel
     systemctl restart gost-tunnel
     
-    echo -e "\n${GREEN}Successfully Configured!${NC}"
+    echo -e "\n${GREEN}Setup Complete! Checking status...${NC}"
     sleep 2
     show_status
 }
@@ -153,7 +146,7 @@ while true; do
     echo -e "4) ${RED}Uninstall / Stop Tunnel${NC}"
     echo -e "5) Exit"
     draw_line
-    read -p "Select option: " opt
+    read -p "Select option [1-5]: " opt
 
     case $opt in
         1) setup_server "iran" ;;
@@ -163,7 +156,7 @@ while true; do
             systemctl stop gost-tunnel && systemctl disable gost-tunnel
             rm -f /etc/systemd/system/gost-tunnel.service
             killall -9 gost 2>/dev/null
-            echo -e "${RED}Service removed and ports cleaned.${NC}"; sleep 2 ;;
+            echo -e "${RED}Tunnel uninstalled.${NC}"; sleep 2 ;;
         5) exit 0 ;;
         *) echo -e "${RED}Invalid!${NC}"; sleep 1 ;;
     esac
