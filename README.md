@@ -19,4 +19,4 @@
 برای راه‌اندازی، دستور زیر را در ترمینال سرور (هم ایران و هم خارج) کپی و اجرا کنید:
 
 ```bash
-bash <(curl -Ls [https://raw.githubusercontent.com/Rmin-ys/Gost-TLS-Shield/main/ys-gost-tls-shield](https://raw.githubusercontent.com/Rmin-ys/Gost-TLS-Shield/main/ys-gost-tls-shield))
+bash <(curl -Ls https://raw.githubusercontent.com/Rmin-ys/Gost-TLS-Shield/main/ys-gost-tls-shield)
