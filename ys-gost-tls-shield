@@ -1,58 +1,59 @@
 #!/bin/bash
 
 # ==========================================
-# Gost-Shield v5.0 (Stable Edition)
+# Gost-Shield v5.0 (Final Stealth Edition)
+# Optimized for Domain/IP & Multi-Port
 # ==========================================
 
 # Colors
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-RED='\033[0;31m'
 BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
 NC='\033[0m'
-
-# Check Gost
-if [ ! -f "/usr/local/bin/gost" ]; then
-    echo -e "${YELLOW}Installing Gost...${NC}"
-    wget -qO gost.gz https://github.com/ginuerzh/gost/releases/download/v2.11.5/gost-linux-amd64-2.11.5.gz && gunzip gost.gz
-    mv gost /usr/local/bin/gost && chmod +x /usr/local/bin/gost
-fi
 
 header() {
     clear
-    echo -e "${BLUE}==================================================${NC}"
-    echo -e "${GREEN}          GOST MANAGER v5.0${NC}"
-    echo -e "${BLUE}==================================================${NC}"
-}
-
-setup_iran() {
-    header
-    read -p "Enter Overseas IP: " r_ip
-    read -p "Enter Bridge Port: " b_port
-    read -p "Enter Password: " s_pass
-    read -p "Enter Local Ports (e.g. 8885,8875): " raw_ports
-    
-    # اصلاح خودکار کاراکترهای فارسی و فاصله‌ها
-    ports=$(echo $raw_ports | sed 's/و/,/g' | tr -d ' ')
-    
-    IFS=',' read -ra ADDR <<< "$ports"
-    ARGS=""
-    for i in "${ADDR[@]}"; do
-        ARGS+="-L tcp://:$i/127.0.0.1:$i "
-    done
-
-    EXEC_CMD="/usr/local/bin/gost $ARGS -F ss://chacha20:$s_pass@$r_ip:$b_port"
-    create_service "$EXEC_CMD"
+    echo -e "${PURPLE}==================================================${NC}"
+    echo -e "${GREEN}        GOST SHIELD ULTIMATE v5.0${NC}"
+    echo -e "${PURPLE}==================================================${NC}"
 }
 
 setup_overseas() {
     header
-    read -p "Enter Bridge Port: " b_port
-    read -p "Enter Password: " s_pass
-    read -p "Enter Destination Port (Xray Port): " d_port
+    echo -e "${YELLOW}Overseas Setup (Exit Point)${NC}"
+    read -p "  Enter Bridge Port (e.g., 8080): " b_port
+    read -p "  Set Password: " s_pass
+    read -p "  Internal Destination Port (Xray Port, e.g. 8885): " d_port
     
+    # در خارج، گوست دیتای رمزنگاری شده را باز میکند و به پورت محلی میفرستد
     EXEC_CMD="/usr/local/bin/gost -L ss://chacha20:$s_pass@:$b_port/127.0.0.1:$d_port"
+    
     create_service "$EXEC_CMD"
+}
+
+setup_iran() {
+    header
+    echo -e "${YELLOW}Iran Setup (Entry Point)${NC}"
+    read -p "  Overseas IP or Domain: " r_ip
+    read -p "  Bridge Port: " b_port
+    read -p "  Password: " s_pass
+    read -p "  Local Port in Iran (e.g. 8885): " l_port
+    
+    # در ایران، ورودی را میگیرد و با پروتکل Shadowsocks به خارج میفرستد
+    EXEC_CMD="/usr/local/bin/gost -L tcp://:$l_port/127.0.0.1:$l_port -F ss://chacha20:$s_pass@$r_ip:$b_port"
+    
+    create_service "$EXEC_CMD"
+}
+
+show_status() {
+    header
+    echo -e "${CYAN}--- Service Status ---${NC}"
+    systemctl status gost-tunnel --no-pager
+    echo -e "\n${CYAN}--- Real-time Logs ---${NC}"
+    journalctl -u gost-tunnel -n 10 --no-pager
+    read -p "Press Enter..."
 }
 
 create_service() {
@@ -67,7 +68,7 @@ After=network.target
 Type=simple
 ExecStart=$cmd
 Restart=always
-RestartSec=5
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
@@ -75,23 +76,24 @@ EOF
     systemctl daemon-reload
     systemctl enable gost-tunnel >/dev/null 2>&1
     systemctl restart gost-tunnel
-    echo -e "${GREEN}Service Started Successfully!${NC}"
+    echo -e "${GREEN}✔ Started! Check Status (Option 3) to confirm.${NC}"
     sleep 2
 }
 
 # Main Menu
-header
-echo "1) Setup Iran Server"
-echo "2) Setup Overseas Server"
-echo "3) Show Status & Logs"
-echo "4) Uninstall / Stop"
-echo "5) Exit"
-read -p "Select: " opt
-
-case $opt in
-    1) setup_iran ;;
-    2) setup_overseas ;;
-    3) header; journalctl -u gost-tunnel -n 15 --no-pager; read -p "Press Enter..." ;;
-    4) systemctl stop gost-tunnel; killall -9 gost; echo "Stopped.";;
-    5) exit ;;
-esac
+while true; do
+    header
+    echo "1) Setup Iran"
+    echo "2) Setup Overseas"
+    echo "3) Check Status / Logs"
+    echo "4) Stop Tunnel"
+    echo "5) Exit"
+    read -p "Selection: " opt
+    case $opt in
+        1) setup_iran ;;
+        2) setup_overseas ;;
+        3) show_status ;;
+        4) systemctl stop gost-tunnel; killall -9 gost; echo "Stopped."; sleep 1 ;;
+        5) exit ;;
+    esac
+done
