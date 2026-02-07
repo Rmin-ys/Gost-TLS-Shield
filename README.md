@@ -4,4 +4,4 @@ A smart, interactive, and high-security tunnel manager for Linux servers.
 ## How to use:
 Run this command on both servers:
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/YourUsername/YourRepoName/main/install.sh)
+[bash <(curl -Ls https://raw.githubusercontent.com/YourUsername/YourRepoName/main/install.sh)](https://raw.githubusercontent.com/Rmin-ys/Gost-TLS-Shield/refs/heads/main/ys-gost-tls-shield)
